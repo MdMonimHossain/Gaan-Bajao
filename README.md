@@ -1,2 +1,2 @@
-# Gaan-Bajao-Discord-Bot
+# Gaan-Bajao
 A discord bot for streaming music from YouTube
