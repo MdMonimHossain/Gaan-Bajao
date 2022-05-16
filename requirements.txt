@@ -1,0 +1,6 @@
+asyncio
+discord
+PyNaCl
+yt_dlp
+youtube-search
+dnspython
