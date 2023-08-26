@@ -284,11 +284,14 @@ async def afk_disconnect():
 
 @tasks.loop(hours=24)
 async def clear_cache():
+    global songs
     for file in os.listdir('.\\Songs'):
         try:
             os.remove('.\\Songs\\' + file)
         except Exception as e:
             print(e)
+
+    songs = np.empty(0, dtype=str)
 
 
 # bot.run(os.environ.get('TOKEN'))
