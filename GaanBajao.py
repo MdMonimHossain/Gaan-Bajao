@@ -8,13 +8,16 @@ from yt_dlp import YoutubeDL
 from youtube_search import YoutubeSearch
 import numpy as np
 
+
+SONGS_PATH = './.songs_cache/'
+
 ffmpeg_processes = {}
 song_queue = {}
 songs = np.empty(0, dtype=str)
 
 ydl_opts = {
     'format': 'bestaudio/best',
-    'outtmpl': '.\\Songs\\%(id)s',
+    'outtmpl': SONGS_PATH + '%(id)s',
     'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}],
 }
 
@@ -131,7 +134,7 @@ async def play(ctx):
             await loop.run_in_executor(None, download_song, song_id)
 
             faudio: FFmpegPCMAudio = FFmpegPCMAudio(
-                '.\\Songs\\' + song_id + '.mp3')
+                SONGS_PATH + song_id + '.mp3')
             ffmpeg_processes[guild_id].append(faudio)
             voice_client.play(faudio, after=lambda e: play_next_song(ctx))
 
@@ -158,7 +161,7 @@ def play_next_song(ctx: commands.Context, in_loop=False):
 
             download_song(song_id)
             faudio: FFmpegPCMAudio = FFmpegPCMAudio(
-                '.\\Songs\\' + song_id + '.mp3')
+                SONGS_PATH + song_id + '.mp3')
             ffmpeg_processes[guild_id].append(faudio)
             voice_client.play(
                 faudio, after=lambda e: play_next_song(ctx, in_loop))
@@ -208,7 +211,7 @@ async def loop_song(ctx: commands.Context):
             await loop.run_in_executor(None, download_song, song_id)
 
             faudio: FFmpegPCMAudio = FFmpegPCMAudio(
-                '.\\Songs\\' + song_id + '.mp3')
+                SONGS_PATH + song_id + '.mp3')
             ffmpeg_processes[guild_id].append(faudio)
             voice_client.play(
                 faudio, after=lambda e: play_next_song(ctx, in_loop=True))
@@ -285,9 +288,9 @@ async def afk_disconnect():
 @tasks.loop(hours=24)
 async def clear_cache():
     global songs
-    for file in os.listdir('.\\Songs'):
+    for file in os.listdir(SONGS_PATH):
         try:
-            os.remove('.\\Songs\\' + file)
+            os.remove(SONGS_PATH + file)
         except Exception as e:
             print(e)
 
