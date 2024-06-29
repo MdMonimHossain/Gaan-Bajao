@@ -7,65 +7,57 @@ from discord.ext import commands, tasks
 from yt_dlp import YoutubeDL
 from youtube_search import YoutubeSearch
 import numpy as np
+from logger import BaseLogger, DiscordLogger, YoutubeDLLogger
 
 
-SONGS_PATH = './.songs_cache/'
+logger = BaseLogger().logger
+DiscordLogger()
 
-ffmpeg_processes = {}
+SONG_CACHE_PATH = './.song_cache/'
+
 song_queue = {}
-songs = np.empty(0, dtype=str)
+song_cache = np.empty(0, dtype=str)
 
-ydl_opts = {
+ytdl_options = {
     'format': 'bestaudio/best',
-    'outtmpl': SONGS_PATH + '%(id)s',
+    'outtmpl': SONG_CACHE_PATH + '%(id)s',
     'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}],
+    'logger': YoutubeDLLogger()
 }
 
 bot = commands.Bot(intents=Intents.all(), command_prefix='=')
 
 
 def download_song(song_id: str):
-    global songs
-    if song_id in songs:
+    global song_cache
+    if song_id in song_cache:
         return
 
     video_url = 'https://www.youtube.com/watch?v=' + song_id
-    with YoutubeDL(ydl_opts) as ydl:
-        error_code = ydl.download([video_url])
+    with YoutubeDL(ytdl_options) as ytdl:
+        error_code = ytdl.download([video_url])
         if error_code == 0:
-            songs = np.append(songs, song_id)
+            song_cache = np.append(song_cache, song_id)
+        else:
+            logger.error(f'Error downloading song: {song_id}')
 
 
-def get_song_info(keyword):
-    result = YoutubeSearch(keyword, max_results=1).to_json()
+def get_song_info(search_terms: str):
+    result = YoutubeSearch(search_terms, max_results=1).to_json()
     json_data = json.loads(result)
     return json_data['videos'][0]
-
-
-# not sure if this is the right way to do it
-def cleanup_ffmpeg_process(ctx: commands.Context, all=False):
-    global ffmpeg_processes
-    guild_id = ctx.guild.id
-    if guild_id in ffmpeg_processes:
-        if all:
-            for process in ffmpeg_processes[guild_id]:
-                process.cleanup()
-            ffmpeg_processes[guild_id] = []
-        else:
-            ffmpeg_processes[guild_id][0].cleanup()
-            ffmpeg_processes[guild_id].pop(0)
 
 
 @bot.event
 async def on_ready():
     print(f'{bot.user} is online.')
+    logger.info(f'{bot.user} connected to Discord.')
     afk_disconnect.start()
     clear_cache.start()
     await bot.change_presence(activity=Activity(type=ActivityType.listening, name='Type =help For Help'))
 
 
 async def disconnect_bot(ctx: commands.Context):
-    cleanup_ffmpeg_process(ctx, all=True)
     voice_client = ctx.voice_client
     if voice_client.is_connected():
         song_queue[ctx.guild.id] = []
@@ -73,7 +65,6 @@ async def disconnect_bot(ctx: commands.Context):
 
 
 async def connect_bot(ctx: commands.Context):
-    global song_queue
     guild_id = ctx.guild.id
 
     if not ctx.author.voice:
@@ -89,7 +80,6 @@ async def connect_bot(ctx: commands.Context):
         await disconnect_bot(ctx)
 
     song_queue[guild_id] = []
-    ffmpeg_processes[guild_id] = []
     return await author_channel.connect()
 
 
@@ -101,19 +91,18 @@ async def leave(ctx: commands.Context):
 
 @bot.command(name='p', help='"=p SongName" plays the song')
 async def play(ctx):
-    global song_queue
     guild_id = ctx.guild.id
     voice_client = await connect_bot(ctx)
     if voice_client is None:
         return
 
     try:
-        keyword = ctx.message.content.split("=p ", 1)[1]
+        search_terms = ctx.message.content.split("=p ", 1)[1]
     except IndexError:
         await ctx.send('**Type "=p SongName" to play the song**')
         return
 
-    song_info = get_song_info(keyword)
+    song_info = get_song_info(search_terms)
     song_title = song_info['title']
     song_id = song_info['id']
     song_queue[guild_id].append(song_id)
@@ -132,21 +121,23 @@ async def play(ctx):
         async with ctx.typing():
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, download_song, song_id)
-
+        
+        if song_id in song_cache:
             faudio: FFmpegPCMAudio = FFmpegPCMAudio(
-                SONGS_PATH + song_id + '.mp3')
-            ffmpeg_processes[guild_id].append(faudio)
+                SONG_CACHE_PATH + song_id + '.mp3')
             voice_client.play(faudio, after=lambda e: play_next_song(ctx))
 
-        await ctx.send(f'**Now playing:** {song_title}')
-        await ctx.message.add_reaction('\u25B6')
+            await ctx.send(f'**Now playing:** {song_title}')
+            await ctx.message.add_reaction('\u25B6')
+        else:
+            await ctx.send('**Sorry! Error occured playing the song**')
+            logger.error(f'Song not found in cache: {song_id}')
     except Exception as e:
         await ctx.send('**Sorry! Error occured playing the song**')
-        print(e)
+        logger.error(e)
 
 
 def play_next_song(ctx: commands.Context, in_loop=False):
-    global song_queue
     guild_id = ctx.guild.id
     voice_client = ctx.voice_client
 
@@ -160,14 +151,17 @@ def play_next_song(ctx: commands.Context, in_loop=False):
                 song_queue[guild_id].pop(0)
 
             download_song(song_id)
-            faudio: FFmpegPCMAudio = FFmpegPCMAudio(
-                SONGS_PATH + song_id + '.mp3')
-            ffmpeg_processes[guild_id].append(faudio)
-            voice_client.play(
-                faudio, after=lambda e: play_next_song(ctx, in_loop))
+
+            if song_id in song_cache:
+                faudio: FFmpegPCMAudio = FFmpegPCMAudio(
+                    SONG_CACHE_PATH + song_id + '.mp3')
+                voice_client.play(
+                    faudio, after=lambda e: play_next_song(ctx, in_loop))
+            else:
+                logger.error(f'Song not found in cache: {song_id}')
 
         except Exception as e:
-            print(e)
+            logger.error(e)
 
 
 @bot.command(name='skip', help='Skips current song and plays next song in queue')
@@ -175,7 +169,6 @@ async def skip(ctx: commands.Context):
     voice_client = ctx.voice_client
 
     if voice_client.is_connected() and (voice_client.is_playing() or voice_client.is_paused()):
-        cleanup_ffmpeg_process(ctx)
         voice_client.stop()
 
         async with ctx.typing():
@@ -185,22 +178,20 @@ async def skip(ctx: commands.Context):
 
 @bot.command(name='loop', help='"=loop SongName" loops the song')
 async def loop_song(ctx: commands.Context):
-    global song_queue
     guild_id = ctx.guild.id
     voice_client = await connect_bot(ctx)
     if voice_client is None:
         return
     if voice_client.is_playing() or voice_client.is_paused():
-        cleanup_ffmpeg_process(ctx)
         voice_client.stop()
 
     try:
-        keyword = ctx.message.content.split("=loop ", 1)[1]
+        search_terms = ctx.message.content.split("=loop ", 1)[1]
     except IndexError:
         await ctx.send('**Type "=loop SongName" to play the song in loop**')
         return
 
-    song_info = get_song_info(keyword)
+    song_info = get_song_info(search_terms)
     song_title = song_info['title']
     song_id = song_info['id']
     song_queue[guild_id] = [song_id]
@@ -210,17 +201,20 @@ async def loop_song(ctx: commands.Context):
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, download_song, song_id)
 
+        if song_id in song_cache:
             faudio: FFmpegPCMAudio = FFmpegPCMAudio(
-                SONGS_PATH + song_id + '.mp3')
-            ffmpeg_processes[guild_id].append(faudio)
+                SONG_CACHE_PATH + song_id + '.mp3')
             voice_client.play(
                 faudio, after=lambda e: play_next_song(ctx, in_loop=True))
 
-        await ctx.send(f'**Playing in loop:** {song_title}')
-        await ctx.message.add_reaction('🔂')
+            await ctx.send(f'**Playing in loop:** {song_title}')
+            await ctx.message.add_reaction('🔂')
+        else:
+            await ctx.send('**Sorry! Error occured playing the song**')
+            logger.error(f'Song not found in cache: {song_id}')
     except Exception as e:
         await ctx.send('**Sorry! Error occured playing the song**')
-        print(e)
+        logger.error(e)
 
 
 @bot.command(name='pause', help='Pauses current song')
@@ -241,20 +235,17 @@ async def resume(ctx: commands.Context):
 
 @bot.command(name='stop', help='Stops playing song')
 async def stop(ctx: commands.Context):
-    global song_queue
     guild_id = ctx.guild.id
     song_queue[guild_id] = []
 
     voice_client = ctx.guild.voice_client
     if voice_client.is_connected() and (voice_client.is_playing() or voice_client.is_paused()):
-        cleanup_ffmpeg_process(ctx, all=True)
         voice_client.stop()
         await ctx.message.add_reaction('\u23F9')
 
 
 @bot.command(name='queue', help='Shows the queue')
 async def view_queue(ctx: commands.Context):
-    global song_queue
     song_count = 1
     song_list = ''
     guild_id = ctx.guild.id
@@ -272,10 +263,12 @@ async def view_queue(ctx: commands.Context):
 
 
 @bot.event
-async def on_command_error(ctx: commands.Context, error: commands.CommandError):
+async def on_command_error(ctx: commands.Context, error: Exception):
     if isinstance(error, commands.CommandNotFound):
         await ctx.send('**Unknown command! Type "=help" to see all the commands**')
         await ctx.message.add_reaction('\u274C')
+    else:
+        logger.error(f'Error: {error} occurred in command: {ctx.command}')
 
 
 @tasks.loop(seconds=15)
@@ -287,16 +280,16 @@ async def afk_disconnect():
 
 @tasks.loop(hours=24)
 async def clear_cache():
-    global songs
-    for file in os.listdir(SONGS_PATH):
+    global song_cache
+    for file in os.listdir(SONG_CACHE_PATH):
         try:
-            os.remove(SONGS_PATH + file)
+            os.remove(SONG_CACHE_PATH + file)
         except Exception as e:
-            print(e)
+            logger.error(e)
 
-    songs = np.empty(0, dtype=str)
+    song_cache = np.empty(0, dtype=str)
 
 
 # bot.run(os.environ.get('TOKEN'))
 load_dotenv(".env")
-bot.run(os.getenv('TOKEN'))
+bot.run(os.getenv('TOKEN'), log_handler=None)
