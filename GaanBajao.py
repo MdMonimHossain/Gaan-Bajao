@@ -59,7 +59,7 @@ async def on_ready():
 
 async def disconnect_bot(ctx: commands.Context):
     voice_client = ctx.voice_client
-    if voice_client.is_connected():
+    if voice_client and voice_client.is_connected():
         song_queue[ctx.guild.id] = []
         await voice_client.disconnect()
 
@@ -141,7 +141,7 @@ def play_next_song(ctx: commands.Context, in_loop=False):
     guild_id = ctx.guild.id
     voice_client = ctx.voice_client
 
-    if voice_client.is_connected() and song_queue.get(guild_id):
+    if voice_client and voice_client.is_connected() and song_queue.get(guild_id):
         try:
             if in_loop and len(song_queue[guild_id]) > 1:
                 song_id = song_queue[guild_id][1]
@@ -168,7 +168,7 @@ def play_next_song(ctx: commands.Context, in_loop=False):
 async def skip(ctx: commands.Context):
     voice_client = ctx.voice_client
 
-    if voice_client.is_connected() and (voice_client.is_playing() or voice_client.is_paused()):
+    if voice_client and voice_client.is_connected() and (voice_client.is_playing() or voice_client.is_paused()):
         voice_client.stop()
 
         async with ctx.typing():
@@ -220,7 +220,7 @@ async def loop_song(ctx: commands.Context):
 @bot.command(name='pause', help='Pauses current song')
 async def pause(ctx: commands.Context):
     voice_client = ctx.guild.voice_client
-    if voice_client.is_connected() and voice_client.is_playing():
+    if voice_client and voice_client.is_connected() and voice_client.is_playing():
         voice_client.pause()
         await ctx.message.add_reaction('\u23F8')
 
@@ -228,7 +228,7 @@ async def pause(ctx: commands.Context):
 @bot.command(name='resume', help='Resumes current song')
 async def resume(ctx: commands.Context):
     voice_client = ctx.guild.voice_client
-    if voice_client.is_connected() and voice_client.is_paused():
+    if voice_client and voice_client.is_connected() and voice_client.is_paused():
         voice_client.resume()
         await ctx.message.add_reaction('\u25B6')
 
@@ -239,7 +239,7 @@ async def stop(ctx: commands.Context):
     song_queue[guild_id] = []
 
     voice_client = ctx.guild.voice_client
-    if voice_client.is_connected() and (voice_client.is_playing() or voice_client.is_paused()):
+    if voice_client and voice_client.is_connected() and (voice_client.is_playing() or voice_client.is_paused()):
         voice_client.stop()
         await ctx.message.add_reaction('\u23F9')
 
