@@ -42,9 +42,13 @@ def download_song(song_id: str):
             logger.error(f'Error downloading song: {song_id}')
 
 
-def get_song_info(search_terms: str):
-    result = YoutubeSearch(search_terms, max_results=1).to_json()
+def get_song_info(search_terms: str, max_results: int = 1):
+    result = YoutubeSearch(search_terms, max_results=max_results).to_json()
     json_data = json.loads(result)
+
+    if max_results > 1:
+        return json_data['videos']
+    
     return json_data['videos'][0]
 
 
@@ -259,6 +263,30 @@ async def view_queue(ctx: commands.Context):
         await ctx.send(song_list)
     else:
         await ctx.send('**No song in queue!**')
+    await ctx.message.add_reaction('\u2705')
+
+
+@bot.command(name='search', help='**Type "=search SongName" to search for the song**')
+async def search(ctx: commands.Context):
+    try:
+        search_terms = ctx.message.content.split("=search ", 1)[1]
+    except IndexError:
+        await ctx.send('**Type "=s SongName" to search for the song**')
+        return
+    
+    async with ctx.typing():
+        song_list = get_song_info(search_terms, max_results=3)
+
+    for song in song_list:
+        song_info = '**' + song['title'] + '**\n' + \
+            'Duration: *' + song['duration'] + '*\n' + \
+            'https://www.youtube.com/watch?v=' + song['id']
+
+        await ctx.send(song_info)
+
+    if not song_list:
+        await ctx.send('**No songs found!**')
+
     await ctx.message.add_reaction('\u2705')
 
 
