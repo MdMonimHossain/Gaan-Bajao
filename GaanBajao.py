@@ -271,7 +271,7 @@ async def search(ctx: commands.Context):
     try:
         search_terms = ctx.message.content.split("=search ", 1)[1]
     except IndexError:
-        await ctx.send('**Type "=s SongName" to search for the song**')
+        await ctx.send('**Type "=search SongName" to search for the song**')
         return
     
     async with ctx.typing():
