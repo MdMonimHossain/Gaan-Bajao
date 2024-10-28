@@ -1,19 +1,19 @@
-import os
-from dotenv import load_dotenv
 import asyncio
 import json
+import numpy as np
+import os
+from dotenv import load_dotenv
 from discord import Activity, ActivityType, Intents, FFmpegPCMAudio
 from discord.ext import commands, tasks
-from yt_dlp import YoutubeDL
+from logger import get_base_logger, get_ytdl_logger, set_discord_logger
 from youtube_search import YoutubeSearch
-import numpy as np
-from logger import BaseLogger, DiscordLogger, YoutubeDLLogger
+from yt_dlp import YoutubeDL
 
-
-logger = BaseLogger().logger
-DiscordLogger()
 
 SONG_CACHE_PATH = './.song_cache/'
+
+logger = get_base_logger()
+set_discord_logger()
 
 song_queue = {}
 song_cache = np.empty(0, dtype=str)
@@ -22,7 +22,7 @@ ytdl_options = {
     'format': 'bestaudio/best',
     'outtmpl': SONG_CACHE_PATH + '%(id)s',
     'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}],
-    'logger': YoutubeDLLogger(),
+    'logger': get_ytdl_logger(),
     'username': 'oauth',
     'password': ''
 }

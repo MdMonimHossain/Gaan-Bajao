@@ -1,50 +1,55 @@
 import os
 import logging
-from logging import Formatter, getLogger
+from logging import Formatter, Logger, getLogger
 from logging.handlers import RotatingFileHandler
 
 
-class BaseLogger:
-    def __init__(self, name: str = 'bot', log_path: str = './.logs/', filename: str = 'bot.log', level: int = logging.INFO, encoding: str = 'utf-8', maxBytes: int = 10 * 1024 * 1024, backupCount: int = 5):
-        if not os.path.exists(log_path):
-            os.makedirs(log_path)
+LOG_PATH = './.logs/'
 
-        self._handler = RotatingFileHandler(
-            filename=log_path + filename,
-            encoding=encoding,
-            maxBytes=maxBytes,
-            backupCount=backupCount,
-        )
-        self._handler.setFormatter(Formatter('[{asctime}] [{levelname:<8}] {name}: {message}', '%Y-%m-%d %H:%M:%S', style='{'))
-        
-        self.logger = getLogger(name)
-        self.logger.addHandler(self._handler)
-        self.logger.setLevel(level) # logging.INFO passes all levels except debug
+# logging.INFO passes all levels except debug
 
-
-class DiscordLogger(BaseLogger):
-    def __init__(self, log_path: str = './.logs/', filename: str = 'discord.log', level: int = logging.INFO, encoding: str = 'utf-8', maxBytes: int = 10 * 1024 * 1024, backupCount: int = 5):
-        super().__init__('discord', log_path, filename, level, encoding, maxBytes, backupCount)
+def _create_handler(log_path: str, filename: str, encoding: str = 'utf-8', max_bytes: int = 100 * 1024, backup_count: int = 5) -> RotatingFileHandler:
+    if not os.path.exists(log_path):
+        os.makedirs(log_path)
+    
+    handler = RotatingFileHandler(
+        filename=log_path + filename,
+        encoding=encoding,
+        maxBytes=max_bytes,
+        backupCount=backup_count,
+    )
+    handler.setFormatter(Formatter('[{asctime}] [{levelname:<8}] {name}: {message}', '%Y-%m-%d %H:%M:%S', style='{'))
+    
+    return handler
 
 
-class YoutubeDLLogger(BaseLogger):
-    def __init__(self, name: str = 'yt-dlp', log_path: str = './.logs/', filename: str = 'yt_dlp.log', level: int = logging.INFO, encoding: str = 'utf-8', maxBytes: int = 10 * 1024 * 1024, backupCount: int = 5):
-        super().__init__(name, log_path, filename, level, encoding, maxBytes, backupCount)
+class YoutubeDLLogger(Logger):
+    def __init__(self, name: str, level: int):
+        super().__init__(name, level)
 
-    def debug(self, msg):
+    def debug(self, msg: str, *args, **kwargs) -> None:
         # For compatibility with youtube-dl, both debug and info are passed into debug
         # You can distinguish them by the prefix '[debug] '
         if msg.startswith('[debug] '):
-            self.logger.debug(msg[8:])
+            super().debug(msg, *args, **kwargs)
         else:
-            self.info(msg)
+            self.info(msg, *args, **kwargs)
 
-    def info(self, msg):
-        self.logger.info(msg)
 
-    def warning(self, msg):
-        self.logger.warning(msg)
+def get_base_logger(name: str = 'bot', level: int = logging.INFO, log_path: str = LOG_PATH) -> Logger:
+    logger = Logger(name, level)
+    logger.addHandler(_create_handler(log_path, name + '.log'))
+    return logger
 
-    def error(self, msg):
-        self.logger.error(msg)
+
+def get_ytdl_logger(name: str = 'yt_dl', level: int = logging.INFO, log_path: str = LOG_PATH) -> YoutubeDLLogger:
+    logger = YoutubeDLLogger(name, level)
+    logger.addHandler(_create_handler(log_path, name + '.log'))
+    return logger
+
+
+def set_discord_logger(level: int = logging.INFO, log_path: str = LOG_PATH) -> None:
+    logger = getLogger('discord')
+    logger.setLevel(level)
+    logger.addHandler(_create_handler(log_path, 'discord.log'))
 
