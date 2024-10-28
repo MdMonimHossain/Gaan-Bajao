@@ -48,7 +48,7 @@ def get_ytdl_logger(name: str = 'yt_dl', level: int = logging.INFO, log_path: st
     return logger
 
 
-def set_discord_logger(level: int = logging.INFO, log_path: str = LOG_PATH) -> None:
+def setup_discord_logger(level: int = logging.INFO, log_path: str = LOG_PATH) -> None:
     logger = getLogger('discord')
     logger.setLevel(level)
     logger.addHandler(_create_handler(log_path, 'discord.log'))

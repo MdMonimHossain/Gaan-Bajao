@@ -5,7 +5,7 @@ import os
 from dotenv import load_dotenv
 from discord import Activity, ActivityType, Intents, FFmpegPCMAudio
 from discord.ext import commands, tasks
-from logger import get_base_logger, get_ytdl_logger, set_discord_logger
+from logger import get_base_logger, get_ytdl_logger, setup_discord_logger
 from youtube_search import YoutubeSearch
 from yt_dlp import YoutubeDL
 
@@ -13,7 +13,7 @@ from yt_dlp import YoutubeDL
 SONG_CACHE_PATH = './.song_cache/'
 
 logger = get_base_logger()
-set_discord_logger()
+setup_discord_logger()
 
 song_queue = {}
 song_cache = np.empty(0, dtype=str)
