@@ -22,7 +22,9 @@ ytdl_options = {
     'format': 'bestaudio/best',
     'outtmpl': SONG_CACHE_PATH + '%(id)s',
     'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}],
-    'logger': YoutubeDLLogger()
+    'logger': YoutubeDLLogger(),
+    'username': 'oauth',
+    'password': ''
 }
 
 bot = commands.Bot(intents=Intents.all(), command_prefix='=')
