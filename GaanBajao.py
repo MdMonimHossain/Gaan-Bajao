@@ -3,7 +3,7 @@ import json
 import numpy as np
 import os
 from dotenv import load_dotenv
-from discord import Activity, ActivityType, Intents, FFmpegPCMAudio
+from discord import Activity, ActivityType, Intents, FFmpegOpusAudio
 from discord.ext import commands, tasks
 from logger import get_base_logger, get_ytdl_logger, setup_discord_logger
 from youtube_search import YoutubeSearch
@@ -21,7 +21,7 @@ song_cache = np.empty(0, dtype=str)
 ytdl_options = {
     'format': 'bestaudio/best',
     'outtmpl': SONG_CACHE_PATH + '%(id)s',
-    'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}],
+    'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'opus', 'preferredquality': '128'}],
     'logger': get_ytdl_logger(),
     'username': 'oauth',
     'password': ''
@@ -129,8 +129,8 @@ async def play(ctx):
             await loop.run_in_executor(None, download_song, song_id)
         
         if song_id in song_cache:
-            faudio: FFmpegPCMAudio = FFmpegPCMAudio(
-                SONG_CACHE_PATH + song_id + '.mp3')
+            faudio: FFmpegOpusAudio = FFmpegOpusAudio(
+                SONG_CACHE_PATH + song_id + '.opus', codec='copy')
             voice_client.play(faudio, after=lambda e: play_next_song(ctx))
 
             await ctx.send(f'**Now playing:** {song_title}')
@@ -159,8 +159,8 @@ def play_next_song(ctx: commands.Context, in_loop=False):
             download_song(song_id)
 
             if song_id in song_cache:
-                faudio: FFmpegPCMAudio = FFmpegPCMAudio(
-                    SONG_CACHE_PATH + song_id + '.mp3')
+                faudio: FFmpegOpusAudio = FFmpegOpusAudio(
+                    SONG_CACHE_PATH + song_id + '.opus', codec='copy')
                 voice_client.play(
                     faudio, after=lambda e: play_next_song(ctx, in_loop))
             else:
@@ -208,8 +208,8 @@ async def loop_song(ctx: commands.Context):
             await loop.run_in_executor(None, download_song, song_id)
 
         if song_id in song_cache:
-            faudio: FFmpegPCMAudio = FFmpegPCMAudio(
-                SONG_CACHE_PATH + song_id + '.mp3')
+            faudio: FFmpegOpusAudio = FFmpegOpusAudio(
+                SONG_CACHE_PATH + song_id + '.opus', codec='copy')
             voice_client.play(
                 faudio, after=lambda e: play_next_song(ctx, in_loop=True))
 
