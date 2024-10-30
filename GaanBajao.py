@@ -48,10 +48,13 @@ def download_song(song_id: str):
             logger.error(f'Error downloading song: {song_id}')
 
 
-def get_song_info(search_terms: str, max_results: int = 1):
+def get_song_info(search_terms: str, max_results: int = 1, lyrical_video=False):
     """
     Get the song information from YouTube
     """
+    if lyrical_video:
+        search_terms = search_terms + ' (Lyrics)'
+    
     result = YoutubeSearch(search_terms, max_results=max_results).to_json()
     json_data = json.loads(result)
 
@@ -127,7 +130,7 @@ async def play(interaction: Interaction, song: str):
         await interaction.response.send_message("**You are not connected to a voice channel**")
         return
 
-    song_info = get_song_info(song)
+    song_info = get_song_info(song, lyrical_video=True)
     song_title = song_info['title']
     song_id = song_info['id']
     song_queue[interaction.guild_id].append(song_id)
@@ -217,7 +220,7 @@ async def loop_song(interaction: Interaction, song: str):
     if voice_client.is_playing() or voice_client.is_paused():
         voice_client.stop()
 
-    song_info = get_song_info(song)
+    song_info = get_song_info(song, lyrical_video=True)
     song_title = song_info['title']
     song_id = song_info['id']
     song_queue[interaction.guild_id] = [song_id]
