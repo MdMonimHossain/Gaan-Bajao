@@ -69,11 +69,19 @@ async def on_ready():
     """
     Event triggered when the bot is ready
     """
-    await command_tree.sync()
     print(f'{client.user} is online.')
     logger.info(f'{client.user} connected to Discord.')
+
+    await command_tree.sync()
+
+    commands = await command_tree.fetch_commands()
+    if commands:
+        for command in commands:
+            logger.info(f'Command registered: {command.name} - {command.id}')
+    
     afk_disconnect.start()
     clear_cache.start()
+    
     await client.change_presence(activity=Activity(type=ActivityType.listening, name='/help for help'))
 
 
