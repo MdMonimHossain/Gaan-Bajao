@@ -302,20 +302,20 @@ async def view_queue(interaction: Interaction):
 
 
 @command_tree.command(name='search')
-async def search(interaction: Interaction, search_terms: str, max_results: int = 3):
+async def search(interaction: Interaction, query: str, max_results: int = 3):
     """
     Search for a song on YouTube
 
     Parameters
     ----------
-    search_terms : str
+    query : str
         search terms for the song
     max_results : int
         maximum number of search results
     """
     song_info = ''
     await interaction.response.send_message('**Searching for songs...**')
-    song_list = get_song_info(search_terms, max_results=max_results)
+    song_list = get_song_info(query, max_results=max_results)
 
     for song in song_list:
         song_info = song_info + '**' + song['title'] + '**\n' + \
