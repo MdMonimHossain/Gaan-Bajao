@@ -352,13 +352,14 @@ async def help(interaction: Interaction):
     description = """
     `/play [song]`: Play a song from search terms or a YouTube link
     `/loop [song]`: Play a song in loop from search terms or a YouTube link
-    `/pause`: Pause the current song
-    `/resume`: Resume the paused song
-    `/stop`: Stop the current song
-    `/skip`: Skip the current song
-    `/queue`: View the songs in the queue
-    `/search [search_terms] [(optional) max_results]`: Search for a song on YouTube
-    `/leave`: Disconnect the bot from the voice channel
+    `/pause`: Pause current song
+    `/resume`: Resume paused song
+    `/stop`: Stop current song
+    `/skip`: Skip current song and play next song in the queue
+    `/queue`: View the songs in queue
+    `/search [query] [max_results]`: Search for a song on YouTube
+    `/leave`: Disconnect from voice channel
+    `/help`: Display this help message
     """
 
     await interaction.response.send_message(embed=Embed(title='Supported commands', description=description))
