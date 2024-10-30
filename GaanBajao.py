@@ -3,8 +3,8 @@ import json
 import numpy as np
 import os
 from dotenv import load_dotenv
-from discord import Activity, ActivityType, Intents, FFmpegOpusAudio
-from discord.ext import commands, tasks
+from discord import app_commands, Activity, ActivityType, Client, Embed, FFmpegOpusAudio, Intents, Interaction
+from discord.ext import tasks
 from logger import get_base_logger, get_ytdl_logger, setup_discord_logger
 from youtube_search import YoutubeSearch
 from yt_dlp import YoutubeDL
@@ -27,10 +27,14 @@ ytdl_options = {
     'password': ''
 }
 
-bot = commands.Bot(intents=Intents.all(), command_prefix='=')
+client = Client(intents=Intents.default())
+command_tree = app_commands.CommandTree(client)
 
 
 def download_song(song_id: str):
+    """
+    Download the song from YouTube
+    """
     global song_cache
     if song_id in song_cache:
         return
@@ -45,6 +49,9 @@ def download_song(song_id: str):
 
 
 def get_song_info(search_terms: str, max_results: int = 1):
+    """
+    Get the song information from YouTube
+    """
     result = YoutubeSearch(search_terms, max_results=max_results).to_json()
     json_data = json.loads(result)
 
@@ -54,98 +61,108 @@ def get_song_info(search_terms: str, max_results: int = 1):
     return json_data['videos'][0]
 
 
-@bot.event
+@client.event
 async def on_ready():
-    print(f'{bot.user} is online.')
-    logger.info(f'{bot.user} connected to Discord.')
+    """
+    Event triggered when the bot is ready
+    """
+    await command_tree.sync()
+    print(f'{client.user} is online.')
+    logger.info(f'{client.user} connected to Discord.')
     afk_disconnect.start()
     clear_cache.start()
-    await bot.change_presence(activity=Activity(type=ActivityType.listening, name='Type =help For Help'))
+    await client.change_presence(activity=Activity(type=ActivityType.listening, name='/help for help'))
 
 
-async def disconnect_bot(ctx: commands.Context):
-    voice_client = ctx.voice_client
+async def disconnect_bot(interaction: Interaction):
+    """
+    Disconnect the bot from the voice channel
+    """
+    voice_client = interaction.guild.voice_client
     if voice_client and voice_client.is_connected():
-        song_queue[ctx.guild.id] = []
+        song_queue[interaction.guild_id] = []
         await voice_client.disconnect()
 
 
-async def connect_bot(ctx: commands.Context):
-    guild_id = ctx.guild.id
-
-    if not ctx.author.voice:
-        await ctx.send("**You are not connected to a voice channel**")
+async def connect_bot(interaction: Interaction):
+    """
+    Connect the bot to the voice channel
+    """
+    if not interaction.user.voice:
         return None
 
-    author_channel = ctx.author.voice.channel
-    guild_voice_client = ctx.voice_client
+    user_channel = interaction.user.voice.channel
+    guild_voice_client = interaction.guild.voice_client
 
-    if guild_voice_client in ctx.bot.voice_clients:
-        if guild_voice_client.channel == author_channel:
+    if guild_voice_client in client.voice_clients:
+        if guild_voice_client.channel == user_channel:
             return guild_voice_client
-        await disconnect_bot(ctx)
+        await disconnect_bot(interaction)
 
-    song_queue[guild_id] = []
-    return await author_channel.connect()
-
-
-@bot.command(name='leave', help='Leaves the voice channel')
-async def leave(ctx: commands.Context):
-    await disconnect_bot(ctx)
-    await ctx.message.add_reaction('\u2705')
+    song_queue[interaction.guild_id] = []
+    return await user_channel.connect()
 
 
-@bot.command(name='p', help='"=p SongName" plays the song')
-async def play(ctx):
-    guild_id = ctx.guild.id
-    voice_client = await connect_bot(ctx)
+@command_tree.command(name='leave')
+async def leave(interaction: Interaction):
+    """
+    Disconnect the bot from the voice channel
+    """
+    await disconnect_bot(interaction)
+    await interaction.response.send_message('**Disconnected from voice channel**')
+
+
+@command_tree.command(name='play')
+async def play(interaction: Interaction, song: str):
+    """
+    Play song from search terms or a YouTube link
+
+    Parameters
+    ----------
+    song : str
+        search terms or a YouTube link
+    """
+    voice_client = await connect_bot(interaction)
     if voice_client is None:
+        await interaction.response.send_message("**You are not connected to a voice channel**")
         return
 
-    try:
-        search_terms = ctx.message.content.split("=p ", 1)[1]
-    except IndexError:
-        await ctx.send('**Type "=p SongName" to play the song**')
-        return
-
-    song_info = get_song_info(search_terms)
+    song_info = get_song_info(song)
     song_title = song_info['title']
     song_id = song_info['id']
-    song_queue[guild_id].append(song_id)
+    song_queue[interaction.guild_id].append(song_id)
 
     if voice_client.is_playing() or voice_client.is_paused():
-        async with ctx.typing():
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, download_song, song_id)
-
-        await ctx.send('**Queued to play next:** ' + song_title)
-        await ctx.message.add_reaction('\u25B6')
+        await interaction.response.send_message('**Queued to play next:** ' + song_title)
+        await asyncio.get_event_loop().run_in_executor(None, download_song, song_id)
         return
 
     try:
-        song_queue[guild_id].pop(0)
-        async with ctx.typing():
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, download_song, song_id)
+        song_queue[interaction.guild_id].pop(0)
+        await interaction.response.send_message('**Starting to play:** ' + song_title)
+        await asyncio.get_event_loop().run_in_executor(None, download_song, song_id)
         
         if song_id in song_cache:
             faudio: FFmpegOpusAudio = FFmpegOpusAudio(
                 SONG_CACHE_PATH + song_id + '.opus', codec='copy')
-            voice_client.play(faudio, after=lambda e: play_next_song(ctx))
-
-            await ctx.send(f'**Now playing:** {song_title}')
-            await ctx.message.add_reaction('\u25B6')
+            voice_client.play(faudio, after=lambda _: play_next_song(interaction))
+            await interaction.edit_original_response(content='**Now playing:** ' + song_title)
         else:
-            await ctx.send('**Sorry! Error occured playing the song**')
+            await interaction.edit_original_response(content='**Sorry! Error occured playing the song**')
             logger.error(f'Song not found in cache: {song_id}')
     except Exception as e:
-        await ctx.send('**Sorry! Error occured playing the song**')
+        if interaction.response.is_done():
+            await interaction.edit_original_response(content='**Sorry! Error occured playing the song**')
+        await interaction.response.send_message('**Sorry! Error occured playing the song**')
         logger.error(e)
 
 
-def play_next_song(ctx: commands.Context, in_loop=False):
-    guild_id = ctx.guild.id
-    voice_client = ctx.voice_client
+def play_next_song(interaction: Interaction, in_loop=False):
+    """
+    Play the next song in the queue
+    """
+    guild_id = interaction.guild_id
+    voice_client = interaction.guild.voice_client
 
     if voice_client and voice_client.is_connected() and song_queue.get(guild_id):
         try:
@@ -161,8 +178,7 @@ def play_next_song(ctx: commands.Context, in_loop=False):
             if song_id in song_cache:
                 faudio: FFmpegOpusAudio = FFmpegOpusAudio(
                     SONG_CACHE_PATH + song_id + '.opus', codec='copy')
-                voice_client.play(
-                    faudio, after=lambda e: play_next_song(ctx, in_loop))
+                voice_client.play(faudio, after=lambda _: play_next_song(interaction, in_loop))
             else:
                 logger.error(f'Song not found in cache: {song_id}')
 
@@ -170,146 +186,183 @@ def play_next_song(ctx: commands.Context, in_loop=False):
             logger.error(e)
 
 
-@bot.command(name='skip', help='Skips current song and plays next song in queue')
-async def skip(ctx: commands.Context):
-    voice_client = ctx.voice_client
+@command_tree.command(name='skip')
+async def skip(interaction: Interaction):
+    """
+    Skip the current song
+    """
+    voice_client = interaction.guild.voice_client
 
     if voice_client and voice_client.is_connected() and (voice_client.is_playing() or voice_client.is_paused()):
         voice_client.stop()
 
-        async with ctx.typing():
-            await ctx.send('**Skipped!**')
-            await ctx.message.add_reaction('\u2705')
+        await interaction.response.send_message('**Skipped the song**')
+    await interaction.response.send_message('**No song is playing**')
 
 
-@bot.command(name='loop', help='"=loop SongName" loops the song')
-async def loop_song(ctx: commands.Context):
-    guild_id = ctx.guild.id
-    voice_client = await connect_bot(ctx)
+@command_tree.command(name='loop')
+async def loop_song(interaction: Interaction, song: str):
+    """
+    Play song in loop from search terms or a YouTube link
+
+    Parameters
+    ----------
+    song : str
+        search terms or a YouTube link
+    """
+    voice_client = await connect_bot(interaction)
     if voice_client is None:
+        await interaction.response.send_message("**You are not connected to a voice channel**")
         return
     if voice_client.is_playing() or voice_client.is_paused():
         voice_client.stop()
 
-    try:
-        search_terms = ctx.message.content.split("=loop ", 1)[1]
-    except IndexError:
-        await ctx.send('**Type "=loop SongName" to play the song in loop**')
-        return
-
-    song_info = get_song_info(search_terms)
+    song_info = get_song_info(song)
     song_title = song_info['title']
     song_id = song_info['id']
-    song_queue[guild_id] = [song_id]
+    song_queue[interaction.guild_id] = [song_id]
 
     try:
-        async with ctx.typing():
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, download_song, song_id)
+        await interaction.response.send_message(f'**Starting to play in loop:** {song_title}')
+        await asyncio.get_event_loop().run_in_executor(None, download_song, song_id)
 
         if song_id in song_cache:
             faudio: FFmpegOpusAudio = FFmpegOpusAudio(
                 SONG_CACHE_PATH + song_id + '.opus', codec='copy')
-            voice_client.play(
-                faudio, after=lambda e: play_next_song(ctx, in_loop=True))
+            voice_client.play(faudio, after=lambda _: play_next_song(interaction, in_loop=True))
 
-            await ctx.send(f'**Playing in loop:** {song_title}')
-            await ctx.message.add_reaction('🔂')
+            await interaction.edit_original_response(content=f'**Now playing in loop:** {song_title}')
         else:
-            await ctx.send('**Sorry! Error occured playing the song**')
+            await interaction.edit_original_response(content='**Sorry! Error occured playing the song**')
             logger.error(f'Song not found in cache: {song_id}')
     except Exception as e:
-        await ctx.send('**Sorry! Error occured playing the song**')
+        if interaction.response.is_done():
+            await interaction.edit_original_response(content='**Sorry! Error occured playing the song**')
+        await interaction.response.send_message('**Sorry! Error occured playing the song**')
         logger.error(e)
 
 
-@bot.command(name='pause', help='Pauses current song')
-async def pause(ctx: commands.Context):
-    voice_client = ctx.guild.voice_client
+@command_tree.command(name='pause')
+async def pause(interaction: Interaction):
+    """
+    Pause the current song
+    """
+    voice_client = interaction.guild.voice_client
     if voice_client and voice_client.is_connected() and voice_client.is_playing():
         voice_client.pause()
-        await ctx.message.add_reaction('\u23F8')
+        await interaction.response.send_message('**Paused the song**')
+    await interaction.response.send_message('**No song is playing**')
 
 
-@bot.command(name='resume', help='Resumes current song')
-async def resume(ctx: commands.Context):
-    voice_client = ctx.guild.voice_client
+@command_tree.command(name='resume')
+async def resume(interaction: Interaction):
+    """
+    Resume the paused song
+    """
+    voice_client = interaction.guild.voice_client
     if voice_client and voice_client.is_connected() and voice_client.is_paused():
         voice_client.resume()
-        await ctx.message.add_reaction('\u25B6')
+        await interaction.response.send_message('**Resumed the song**')
+    await interaction.response.send_message('**Nothing to resume**')
 
 
-@bot.command(name='stop', help='Stops playing song')
-async def stop(ctx: commands.Context):
-    guild_id = ctx.guild.id
-    song_queue[guild_id] = []
+@command_tree.command(name='stop')
+async def stop(interaction: Interaction):
+    """
+    Stop the current song
+    """
+    song_queue[interaction.guild_id] = []
 
-    voice_client = ctx.guild.voice_client
+    voice_client = interaction.guild.voice_client
     if voice_client and voice_client.is_connected() and (voice_client.is_playing() or voice_client.is_paused()):
         voice_client.stop()
-        await ctx.message.add_reaction('\u23F9')
+        await interaction.response.send_message('**Stopped the song**')
+    await interaction.response.send_message('**No song is playing**')
 
 
-@bot.command(name='queue', help='Shows the queue')
-async def view_queue(ctx: commands.Context):
-    song_count = 1
+@command_tree.command(name='queue')
+async def view_queue(interaction: Interaction):
+    """
+    View the songs in the queue
+    """
+    song_count = 0
     song_list = ''
-    guild_id = ctx.guild.id
 
-    for song_id in song_queue.get(guild_id):
-        song_list = song_list + '**' + \
-            str(song_count) + '.** ' + \
+    await interaction.response.send_message('**Checking the queue...**')
+
+    for i, song_id in enumerate(song_queue.get(interaction.guild_id, [])):
+        song_list = song_list + '**' + str(i + 1) + '.** ' + \
             'https://www.youtube.com/watch?v=' + song_id + '\n'
         song_count += 1
     if song_list:
-        await ctx.send(song_list)
+        song_list = '**Total ' + str(song_count) + ' song(s) in queue:**\n' + song_list
+        await interaction.edit_original_response(content=song_list)
     else:
-        await ctx.send('**No song in queue!**')
-    await ctx.message.add_reaction('\u2705')
+        await interaction.edit_original_response(content='**Queue is empty**')
 
 
-@bot.command(name='search', help='**Type "=search SongName" to search for the song**')
-async def search(ctx: commands.Context):
-    try:
-        search_terms = ctx.message.content.split("=search ", 1)[1]
-    except IndexError:
-        await ctx.send('**Type "=search SongName" to search for the song**')
-        return
-    
-    async with ctx.typing():
-        song_list = get_song_info(search_terms, max_results=3)
+@command_tree.command(name='search')
+async def search(interaction: Interaction, search_terms: str, max_results: int = 3):
+    """
+    Search for a song on YouTube
+
+    Parameters
+    ----------
+    search_terms : str
+        search terms for the song
+    max_results : int
+        maximum number of search results
+    """
+    song_info = ''
+    await interaction.response.send_message('**Searching for songs...**')
+    song_list = get_song_info(search_terms, max_results=max_results)
 
     for song in song_list:
-        song_info = '**' + song['title'] + '**\n' + \
+        song_info = song_info + '**' + song['title'] + '**\n' + \
             'Duration: *' + song['duration'] + '*\n' + \
-            'https://www.youtube.com/watch?v=' + song['id']
+            'https://www.youtube.com/watch?v=' + song['id'] + '\n\n'
 
-        await ctx.send(song_info)
+    await interaction.edit_original_response(content=song_info)
 
     if not song_list:
-        await ctx.send('**No songs found!**')
-
-    await ctx.message.add_reaction('\u2705')
+        await interaction.edit_original_response(content='**No songs found**')
 
 
-@bot.event
-async def on_command_error(ctx: commands.Context, error: Exception):
-    if isinstance(error, commands.CommandNotFound):
-        await ctx.send('**Unknown command! Type "=help" to see all the commands**')
-        await ctx.message.add_reaction('\u274C')
-    else:
-        logger.error(f'Error: {error} occurred in command: {ctx.command}')
+@command_tree.command(name='help')
+async def help(interaction: Interaction):
+    """
+    Display help message
+    """
+    description = """
+    `/play [song]`: Play a song from search terms or a YouTube link
+    `/loop [song]`: Play a song in loop from search terms or a YouTube link
+    `/pause`: Pause the current song
+    `/resume`: Resume the paused song
+    `/stop`: Stop the current song
+    `/skip`: Skip the current song
+    `/queue`: View the songs in the queue
+    `/search [search_terms] [(optional) max_results]`: Search for a song on YouTube
+    `/leave`: Disconnect the bot from the voice channel
+    """
+
+    await interaction.response.send_message(embed=Embed(title='Supported commands', description=description))
 
 
 @tasks.loop(seconds=15)
 async def afk_disconnect():
-    for voice_client in bot.voice_clients:
-        if voice_client.is_connected() and not voice_client.is_playing() and voice_client.channel.members == [bot.user]:
+    """
+    Disconnect the bot if it is alone in the voice channel
+    """
+    for voice_client in client.voice_clients:
+        if voice_client.is_connected() and not voice_client.is_playing() and voice_client.channel.members == [client.user]:
             await voice_client.disconnect()
 
 
 @tasks.loop(hours=24)
 async def clear_cache():
+    """
+    Clear the song cache
+    """
     global song_cache
     for file in os.listdir(SONG_CACHE_PATH):
         try:
@@ -322,4 +375,4 @@ async def clear_cache():
 
 # bot.run(os.environ.get('TOKEN'))
 load_dotenv(".env")
-bot.run(os.getenv('TOKEN'), log_handler=None)
+client.run(os.getenv('TOKEN'), log_handler=None)
