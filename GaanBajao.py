@@ -85,6 +85,8 @@ async def disconnect_bot(interaction: Interaction):
     if voice_client and voice_client.is_connected():
         song_queue[interaction.guild_id] = []
         await voice_client.disconnect()
+        return True
+    return False
 
 
 async def connect_bot(interaction: Interaction):
@@ -111,8 +113,11 @@ async def leave(interaction: Interaction):
     """
     Disconnect the bot from the voice channel
     """
-    await disconnect_bot(interaction)
-    await interaction.response.send_message('**Disconnected from voice channel**')
+    was_disconnected = await disconnect_bot(interaction)
+    if was_disconnected:
+        await interaction.response.send_message('**Disconnected from voice channel**')
+    else:
+        await interaction.response.send_message('**Not connected to a voice channel**')
 
 
 @command_tree.command(name='play')
@@ -198,9 +203,9 @@ async def skip(interaction: Interaction):
 
     if voice_client and voice_client.is_connected() and (voice_client.is_playing() or voice_client.is_paused()):
         voice_client.stop()
-
         await interaction.response.send_message('**Skipped the song**')
-    await interaction.response.send_message('**No song is playing**')
+    else:
+        await interaction.response.send_message('**No song is playing**')
 
 
 @command_tree.command(name='loop')
@@ -254,7 +259,8 @@ async def pause(interaction: Interaction):
     if voice_client and voice_client.is_connected() and voice_client.is_playing():
         voice_client.pause()
         await interaction.response.send_message('**Paused the song**')
-    await interaction.response.send_message('**No song is playing**')
+    else:
+        await interaction.response.send_message('**No song is playing**')
 
 
 @command_tree.command(name='resume')
@@ -266,7 +272,8 @@ async def resume(interaction: Interaction):
     if voice_client and voice_client.is_connected() and voice_client.is_paused():
         voice_client.resume()
         await interaction.response.send_message('**Resumed the song**')
-    await interaction.response.send_message('**Nothing to resume**')
+    else:
+        await interaction.response.send_message('**Nothing to resume**')
 
 
 @command_tree.command(name='stop')
@@ -280,7 +287,8 @@ async def stop(interaction: Interaction):
     if voice_client and voice_client.is_connected() and (voice_client.is_playing() or voice_client.is_paused()):
         voice_client.stop()
         await interaction.response.send_message('**Stopped the song**')
-    await interaction.response.send_message('**No song is playing**')
+    else:
+        await interaction.response.send_message('**No song is playing**')
 
 
 @command_tree.command(name='queue')
@@ -314,20 +322,25 @@ async def search(interaction: Interaction, query: str, max_results: int = 3):
     query : str
         search terms for the song
     max_results : int
-        maximum number of search results
+        maximum number of search results to display (should be between 1 and 10)
     """
-    song_info = ''
+    if max_results < 1 or max_results > 10:
+        await interaction.response.send_message('**Maximum results should be between 1 and 10**')
+        return
+    
     await interaction.response.send_message('**Searching for songs...**')
+    
     song_list = get_song_info(query, max_results=max_results)
-
+    
+    song_info = ''
     for song in song_list:
         song_info = song_info + '**' + song['title'] + '**\n' + \
             'Duration: *' + song['duration'] + '*\n' + \
             'https://www.youtube.com/watch?v=' + song['id'] + '\n\n'
 
-    await interaction.edit_original_response(content=song_info)
-
-    if not song_list:
+    if song_list:
+        await interaction.edit_original_response(content=song_info)
+    else:
         await interaction.edit_original_response(content='**No songs found**')
 
 
