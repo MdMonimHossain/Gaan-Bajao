@@ -57,9 +57,10 @@ def download_song(song_id: str):
 
 def get_song_info(search_terms: str, max_results: int = 1, lyrical_video=False):
     """
-    Get the song information from YouTube
+    Get the song information from YouTube.
+    Adds '(Lyrics)' to the search terms if lyrical_video is True and search_terms is not a YouTube link.
     """
-    if lyrical_video:
+    if lyrical_video and 'youtube.com' not in search_terms and 'youtu.be' not in search_terms:
         search_terms = search_terms + ' (Lyrics)'
 
     result = YoutubeSearch(search_terms, max_results=max_results).to_json()
