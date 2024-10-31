@@ -1,0 +1,17 @@
+name: Deploy Music Bot
+run-name: Deploying to AWS EC2 instance
+on:
+    push:
+        branches:
+            - main
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Deploy to server
+              run: |
+                  ssh -o StrictHostKeyChecking=no -i ${{ secrets.SSH_KEY }} ${{ secrets.USERNAME }}@${{ secrets.SERVER_IP }} "cd ${{ secrets.APP_PATH }} && git checkout main && git pull && source .venv/bin/activate && pip install -r requirements.txt && pm2 restart ${{ vars.PM2_PROCESS }}"
+
+            - name: Done
+              run: echo "Deployment complete"
