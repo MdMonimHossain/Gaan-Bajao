@@ -9,9 +9,18 @@ jobs:
     deploy:
         runs-on: ubuntu-latest
         steps:
-            - name: Deploy to server
+            - name: Creating SSH directory
+              run: mkdir -p ~/.ssh
+
+            - name: Writing SSH key to file
+              run: echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
+
+            - name: Setting permissions for SSH key file
+              run: chmod 600 ~/.ssh/id_rsa
+
+            - name: SSH tunnelling to server and deploying
               run: |
-                  ssh -o StrictHostKeyChecking=no -i ${{ secrets.SSH_KEY }} ${{ secrets.USERNAME }}@${{ secrets.SERVER_IP }} "cd ${{ secrets.APP_PATH }} && git checkout main && git pull && source .venv/bin/activate && pip install -r requirements.txt && pm2 restart ${{ vars.PM2_PROCESS }}"
+                  ssh -o StrictHostKeyChecking=no ${{ secrets.USERNAME }}@${{ secrets.SERVER_IP }} "cd ${{ secrets.APP_PATH }} && git checkout main && git pull && source .venv/bin/activate && pip install -r requirements.txt && pm2 restart ${{ vars.PM2_PROCESS }}"
 
             - name: Done
               run: echo "Deployment complete"
