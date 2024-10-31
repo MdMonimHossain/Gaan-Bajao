@@ -1,13 +1,14 @@
 import asyncio
 import json
-import numpy as np
 import os
+import numpy as np
 from dotenv import load_dotenv
-from discord import app_commands, Activity, ActivityType, Client, Embed, FFmpegOpusAudio, Intents, Interaction
+from discord import (app_commands, Activity, ActivityType, Client, Embed, FFmpegOpusAudio,
+                     Intents, Interaction)
 from discord.ext import tasks
-from logger import get_base_logger, get_ytdl_logger, setup_discord_logger
 from youtube_search import YoutubeSearch
 from yt_dlp import YoutubeDL
+from logger import get_base_logger, get_ytdl_logger, setup_discord_logger
 
 
 SONG_CACHE_PATH = './.song_cache/'
@@ -21,7 +22,13 @@ song_cache = np.empty(0, dtype=str)
 ytdl_options = {
     'format': 'bestaudio/best',
     'outtmpl': SONG_CACHE_PATH + '%(id)s',
-    'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'opus', 'preferredquality': '128'}],
+    'postprocessors': [
+        {
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'opus',
+            'preferredquality': '128'
+        }
+    ],
     'logger': get_ytdl_logger(),
     'username': 'oauth',
     'password': ''
@@ -54,13 +61,13 @@ def get_song_info(search_terms: str, max_results: int = 1, lyrical_video=False):
     """
     if lyrical_video:
         search_terms = search_terms + ' (Lyrics)'
-    
+
     result = YoutubeSearch(search_terms, max_results=max_results).to_json()
     json_data = json.loads(result)
 
     if max_results > 1:
         return json_data['videos']
-    
+
     return json_data['videos'][0]
 
 
@@ -78,11 +85,13 @@ async def on_ready():
     if commands:
         for command in commands:
             logger.info(f'Command registered: {command.name} - {command.id}')
-    
+
     afk_disconnect.start()
     clear_cache.start()
-    
-    await client.change_presence(activity=Activity(type=ActivityType.listening, name='/help for help'))
+
+    await client.change_presence(
+        activity=Activity(type=ActivityType.listening, name='/help for help')
+    )
 
 
 async def disconnect_bot(interaction: Interaction):
@@ -157,7 +166,7 @@ async def play(interaction: Interaction, song: str):
         song_queue[interaction.guild_id].pop(0)
         await interaction.response.send_message('**Starting to play:** ' + song_title)
         await asyncio.get_event_loop().run_in_executor(None, download_song, song_id)
-        
+
         if song_id in song_cache:
             faudio: FFmpegOpusAudio = FFmpegOpusAudio(
                 SONG_CACHE_PATH + song_id + '.opus', codec='copy')
@@ -335,11 +344,11 @@ async def search(interaction: Interaction, query: str, max_results: int = 3):
     if max_results < 1 or max_results > 10:
         await interaction.response.send_message('**Maximum results should be between 1 and 10**')
         return
-    
+
     await interaction.response.send_message('**Searching for songs...**')
-    
+
     song_list = get_song_info(query, max_results=max_results)
-    
+
     song_info = ''
     for song in song_list:
         song_info = song_info + '**' + song['title'] + '**\n' + \
@@ -353,7 +362,7 @@ async def search(interaction: Interaction, query: str, max_results: int = 3):
 
 
 @command_tree.command(name='help')
-async def help(interaction: Interaction):
+async def help_message(interaction: Interaction):
     """
     Display help message
     """
@@ -370,7 +379,9 @@ async def help(interaction: Interaction):
     `/help`: Display this help message
     """
 
-    await interaction.response.send_message(embed=Embed(title='Supported commands', description=description))
+    await interaction.response.send_message(
+        embed=Embed(title='Supported Commands', description=description)
+    )
 
 
 @tasks.loop(seconds=15)
