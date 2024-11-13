@@ -179,7 +179,8 @@ async def play(interaction: Interaction, song: str):
     except Exception as e:
         if interaction.response.is_done():
             await interaction.edit_original_response(content='**Sorry! Error occured playing the song**')
-        await interaction.response.send_message('**Sorry! Error occured playing the song**')
+        else:
+            await interaction.response.send_message('**Sorry! Error occured playing the song**')
         logger.error(e)
 
 
@@ -264,7 +265,8 @@ async def loop_song(interaction: Interaction, song: str):
     except Exception as e:
         if interaction.response.is_done():
             await interaction.edit_original_response(content='**Sorry! Error occured playing the song**')
-        await interaction.response.send_message('**Sorry! Error occured playing the song**')
+        else:
+            await interaction.response.send_message('**Sorry! Error occured playing the song**')
         logger.error(e)
 
 
