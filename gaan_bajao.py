@@ -30,6 +30,11 @@ ytdl_options = {
             'preferredquality': '128'
         }
     ],
+    'extractor_args': {
+        'youtube': {
+            'player_client': ['mweb']
+        }
+    },
     'logger': get_ytdl_logger(),
     'cookiefile': COOKIES_PATH
 }
