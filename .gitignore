@@ -1,5 +1,6 @@
-# Added by me
+# Required for the project
 *.env
+.auth/*
 .song_cache/
 .logs/
 
