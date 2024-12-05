@@ -12,6 +12,7 @@ from logger import get_base_logger, get_ytdl_logger, setup_discord_logger
 
 
 SONG_CACHE_PATH = './.song_cache/'
+COOKIES_PATH = './.auth/cookies.txt'
 
 logger = get_base_logger()
 setup_discord_logger()
@@ -30,8 +31,7 @@ ytdl_options = {
         }
     ],
     'logger': get_ytdl_logger(),
-    'username': 'oauth',
-    'password': ''
+    'cookiefile': COOKIES_PATH
 }
 
 client = Client(intents=Intents.default())
