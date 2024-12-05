@@ -35,6 +35,7 @@ ytdl_options = {
             'player_client': ['mweb']
         }
     },
+    'noprogress': True,
     'logger': get_ytdl_logger(),
     'cookiefile': COOKIES_PATH
 }
