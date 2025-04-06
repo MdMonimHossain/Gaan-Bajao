@@ -32,7 +32,7 @@ ytdl_options = {
     ],
     'extractor_args': {
         'youtube': {
-            'player_client': ['mweb']
+            'player_client': ['tv']
         }
     },
     'noprogress': True,
