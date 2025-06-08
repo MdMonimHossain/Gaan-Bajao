@@ -1,5 +1,5 @@
 name: Deploy Music Bot
-run-name: Deploying to AWS EC2 instance
+run-name: Deploying to server
 on:
     push:
         branches:
@@ -20,7 +20,7 @@ jobs:
 
             - name: SSH tunnelling to server and deploying
               run: |
-                  ssh -o StrictHostKeyChecking=no ${{ secrets.USERNAME }}@${{ secrets.SERVER_IP }} "cd ${{ secrets.APP_PATH }} && git checkout main && git pull && source .venv/bin/activate && pip install -r requirements.txt && pm2 restart ${{ vars.PM2_PROCESS }}"
+                  ssh -o StrictHostKeyChecking=no ${{ secrets.USERNAME }}@${{ secrets.SERVER_IP }} "cd ${{ secrets.APP_PATH }} && git checkout main && git pull && source .venv/bin/activate && pip install -r requirements.txt && sudo systemctl restart ${{ secrets.SERVICE_NAME }}"
 
             - name: Done
               run: echo "Deployment complete"
