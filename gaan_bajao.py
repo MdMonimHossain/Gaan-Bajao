@@ -10,9 +10,13 @@ from youtube_search import YoutubeSearch
 from yt_dlp import YoutubeDL
 from logger import get_base_logger, get_ytdl_logger, setup_discord_logger
 
+load_dotenv(".env")
 
-SONG_CACHE_PATH = './.song_cache/'
-COOKIES_PATH = './.auth/cookies.txt'
+TOKEN = os.getenv('TOKEN') # os.environ.get('TOKEN')
+SONG_CACHE_PATH = os.getenv('SONG_CACHE_PATH')
+COOKIES_PATH = os.getenv('COOKIES_PATH')
+JS_RUNTIME = os.getenv('JS_RUNTIME')
+JS_RUNTIME_PATH = os.getenv('JS_RUNTIME_PATH')
 
 logger = get_base_logger()
 setup_discord_logger()
@@ -33,6 +37,11 @@ ytdl_options = {
     'extractor_args': {
         'youtube': {
             'player_client': ['tv']
+        }
+    },
+    'js_runtimes': {
+        JS_RUNTIME: {
+            'path': JS_RUNTIME_PATH
         }
     },
     'noprogress': True,
@@ -94,7 +103,7 @@ async def on_ready():
             logger.info(f'Command registered: {command.name} - {command.id}')
 
     afk_disconnect.start()
-    clear_cache.start()
+    # clear_cache.start()
 
     await client.change_presence(
         activity=Activity(type=ActivityType.listening, name='/help for help')
@@ -403,7 +412,7 @@ async def afk_disconnect():
             await voice_client.disconnect()
 
 
-@tasks.loop(hours=24)
+# @tasks.loop(hours=24)
 async def clear_cache():
     """
     Clear the song cache
@@ -418,6 +427,4 @@ async def clear_cache():
     song_cache = np.empty(0, dtype=str)
 
 
-# bot.run(os.environ.get('TOKEN'))
-load_dotenv(".env")
-client.run(os.getenv('TOKEN'), log_handler=None)
+client.run(TOKEN, log_handler=None)
