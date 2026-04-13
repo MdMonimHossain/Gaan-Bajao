@@ -163,9 +163,11 @@ async def play(interaction: Interaction, song: str):
     song : str
         search terms or a YouTube link
     """
+    await interaction.response.defer()
+
     voice_client = await connect_bot(interaction)
     if voice_client is None:
-        await interaction.response.send_message("**You are not connected to a voice channel**")
+        await interaction.followup.send("**You are not connected to a voice channel**")
         return
 
     song_info = get_song_info(song, lyrical_video=True)
@@ -174,13 +176,13 @@ async def play(interaction: Interaction, song: str):
     song_queue[interaction.guild_id].append(song_id)
 
     if voice_client.is_playing() or voice_client.is_paused():
-        await interaction.response.send_message('**Queued to play next:** ' + song_title)
+        await interaction.followup.send('**Queued to play next:** ' + song_title)
         await asyncio.get_event_loop().run_in_executor(None, download_song, song_id)
         return
 
     try:
         song_queue[interaction.guild_id].pop(0)
-        await interaction.response.send_message('**Starting to play:** ' + song_title)
+        await interaction.edit_original_response(content='**Starting to play:** ' + song_title)
         await asyncio.get_event_loop().run_in_executor(None, download_song, song_id)
 
         if song_id in song_cache:
@@ -192,10 +194,7 @@ async def play(interaction: Interaction, song: str):
             await interaction.edit_original_response(content='**Sorry! Error occured playing the song**')
             logger.error(f'Song not found in cache: {song_id}')
     except Exception as e:
-        if interaction.response.is_done():
-            await interaction.edit_original_response(content='**Sorry! Error occured playing the song**')
-        else:
-            await interaction.response.send_message('**Sorry! Error occured playing the song**')
+        await interaction.edit_original_response(content='**Sorry! Error occured playing the song**')
         logger.error(e)
 
 
