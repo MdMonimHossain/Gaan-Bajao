@@ -36,7 +36,7 @@ ytdl_options = {
     ],
     'extractor_args': {
         'youtube': {
-            'player_client': ['tv']
+            'player_client': ['default', 'web_embedded']
         }
     },
     'js_runtimes': {
